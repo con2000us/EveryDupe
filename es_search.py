@@ -61,7 +61,7 @@ def start_everything():
                 # -minimized: 最小化启动
                 subprocess.Popen(
                     [path, "-startup", "-minimized", "-silent"], 
-                    shell=True,
+                    shell=False,
                     creationflags=subprocess.CREATE_NO_WINDOW
                 )
                 # 等待 Everything 启动
@@ -101,6 +101,9 @@ def search_files(search_text, search_folder=None):
     # 构建命令
     command = [es_exe_path]
     
+    # 添加选项来阻止显示帮助窗口
+    command.append("-hide-empty-search-results")
+    
     # 添加搜索文件夹参数（如果提供）
     if search_folder:
         command.extend(["-path", search_folder])
@@ -114,7 +117,7 @@ def search_files(search_text, search_folder=None):
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            shell=True,
+            shell=False,  # 使用 shell=False 避免额外窗口
             universal_newlines=False,  # 不自动解码
             creationflags=subprocess.CREATE_NO_WINDOW  # 不显示命令行窗口
         )

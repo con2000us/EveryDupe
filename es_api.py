@@ -36,6 +36,9 @@ def search(search_text, search_folder=None):
     # 构建命令
     command = [es_exe_path]
     
+    # 添加选项来阻止显示帮助窗口
+    command.append("-hide-empty-search-results")
+    
     # 添加搜索文件夹参数（如果提供）
     if search_folder:
         command.extend(["-path", search_folder])
@@ -54,7 +57,7 @@ def search(search_text, search_folder=None):
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            shell=True,
+            shell=False,  # 使用 shell=False 避免额外窗口
             universal_newlines=False,  # 不自动解码
             creationflags=creation_flags
         )
@@ -105,7 +108,7 @@ def search(search_text, search_folder=None):
             
             # 根据错误代码提供更具体的提示
             if process.returncode == 8:
-                error_msg += "\n未找到 Everything IPC 窗口。请确认 Everything 程序已运行。"
+                error_msg += "\n未找到 Everything IPC 窗口。请确认 Everything 程序已运行，或使用非GUI模式运行。"
             
             raise RuntimeError(error_msg)
             
