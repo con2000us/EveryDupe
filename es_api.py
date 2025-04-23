@@ -45,12 +45,18 @@ def search(search_text, search_folder=None):
     
     try:
         # 使用subprocess调用命令
+        # 在 Windows 系统上使用 CREATE_NO_WINDOW 标志避免显示命令行窗口
+        creation_flags = 0
+        if sys.platform == 'win32':
+            creation_flags = subprocess.CREATE_NO_WINDOW
+            
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             shell=True,
-            universal_newlines=False  # 不自动解码
+            universal_newlines=False,  # 不自动解码
+            creationflags=creation_flags
         )
         
         # 读取原始字节输出

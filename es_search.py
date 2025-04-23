@@ -26,12 +26,27 @@ def is_everything_running():
 
 def start_everything():
     """
-    尝试启动 Everything 程序
+    尝试启动 Everything 程序（以服务方式，不显示 GUI）
     
     返回:
         bool: 如果启动成功，则返回 True，否则返回 False
     """
     try:
+        # 首先尝试启动 Everything 服务，如果已安装为服务的话
+        try:
+            # 尝试使用 Windows 服务命令启动 Everything 服务
+            subprocess.run(['sc', 'start', 'Everything'], 
+                          capture_output=True, 
+                          check=False, 
+                          creationflags=subprocess.CREATE_NO_WINDOW)
+            import time
+            time.sleep(2)
+            # 检查是否已启动
+            if is_everything_running():
+                return True
+        except Exception:
+            pass  # 如果失败，继续尝试其他方法
+
         # 尝试在标准安装位置查找 Everything.exe
         potential_paths = [
             r"C:\Program Files\Everything\Everything.exe",
@@ -40,8 +55,15 @@ def start_everything():
         
         for path in potential_paths:
             if os.path.exists(path):
-                # 使用 subprocess 启动 Everything
-                subprocess.Popen([path], shell=True)
+                # 使用 -startup 参数和 CREATE_NO_WINDOW 标志启动 Everything
+                # -startup: 启动后立即最小化
+                # -silent: 静默运行
+                # -minimized: 最小化启动
+                subprocess.Popen(
+                    [path, "-startup", "-minimized", "-silent"], 
+                    shell=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
                 # 等待 Everything 启动
                 import time
                 time.sleep(2)
@@ -93,7 +115,8 @@ def search_files(search_text, search_folder=None):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             shell=True,
-            universal_newlines=False  # 不自动解码
+            universal_newlines=False,  # 不自动解码
+            creationflags=subprocess.CREATE_NO_WINDOW  # 不显示命令行窗口
         )
         
         # 读取原始字节输出

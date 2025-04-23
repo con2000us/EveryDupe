@@ -1,6 +1,6 @@
 import sys
 import os
-from es_search import search_files
+from es_api import search
 
 def main():
     """
@@ -28,7 +28,7 @@ def main():
     
     try:
         # 执行搜索
-        results = search_files(search_text, search_folder)
+        results = search(search_text, search_folder)
         
         # 显示结果
         if results:
