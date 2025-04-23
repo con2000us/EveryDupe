@@ -1,6 +1,6 @@
 """
-ES.EXE 搜索 API
-提供简单的函数调用 es.exe 进行文件搜索
+文件搜索 API
+提供简单的函数调用系统命令搜索文件，不使用 es.exe，避免显示任何窗口
 
 使用方法:
     from es_api import search
@@ -10,14 +10,18 @@ ES.EXE 搜索 API
 import os
 import subprocess
 import sys
+import tempfile
+import time
+import ctypes
+import glob
 
 def search(search_text, search_folder=None):
     """
-    使用 es.exe 搜索文件
+    搜索文件
     
     参数:
         search_text (str): 搜索字符串
-        search_folder (str, optional): 搜索文件夹路径
+        search_folder (str, optional): 搜索文件夹路径，默认为当前目录
     
     返回:
         list: 搜索结果列表
@@ -25,95 +29,102 @@ def search(search_text, search_folder=None):
     异常:
         RuntimeError: 如果搜索过程中出现错误
     """
-    # 获取 es.exe 的完整路径
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    es_exe_path = os.path.join(current_dir, "bin", "es", "es.exe")
+    # 设置搜索文件夹，如果未提供则使用当前目录
+    if not search_folder:
+        search_folder = "."
     
-    # 检查 es.exe 是否存在
-    if not os.path.exists(es_exe_path):
-        raise RuntimeError(f"找不到 es.exe 文件: {es_exe_path}")
+    # 去除文件夹路径末尾的反斜杠
+    search_folder = search_folder.rstrip('\\/')
     
-    # 构建命令
-    command = [es_exe_path]
-    
-    # 添加选项来阻止显示帮助窗口
-    command.append("-hide-empty-search-results")
-    
-    # 添加搜索文件夹参数（如果提供）
-    if search_folder:
-        command.extend(["-path", search_folder])
-    
-    # 添加搜索文本
-    command.append(search_text)
-    
+    # 如果搜索字符串包含通配符，使用 dir 命令搜索
+    if '*' in search_text or '?' in search_text:
+        return _search_with_dir(search_text, search_folder)
+    else:
+        # 否则使用 findstr 搜索文件内容
+        return _search_with_findstr(search_text, search_folder)
+
+def _search_with_dir(pattern, folder):
+    """使用 dir 命令搜索匹配的文件"""
     try:
-        # 使用subprocess调用命令
-        # 在 Windows 系统上使用 CREATE_NO_WINDOW 标志避免显示命令行窗口
-        creation_flags = 0
-        if sys.platform == 'win32':
-            creation_flags = subprocess.CREATE_NO_WINDOW
-            
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=False,  # 使用 shell=False 避免额外窗口
-            universal_newlines=False,  # 不自动解码
-            creationflags=creation_flags
-        )
+        # 创建临时文件以捕获输出
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.txt')
+        temp_path = temp_file.name
+        temp_file.close()
         
-        # 读取原始字节输出
-        stdout_data, stderr_data = process.communicate()
+        # 搜索文件
+        cmd = f'cmd /c dir /b /s "{os.path.join(folder, pattern)}" > "{temp_path}" 2>nul'
         
-        # 尝试多种编码方式解码
-        encodings = ['utf-8', 'gbk', 'cp950', 'big5', 'gb18030']
+        # 使用不显示窗口的方式执行命令
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
         
-        # 先尝试解码stdout
-        result_text = None
-        for encoding in encodings:
-            try:
-                result_text = stdout_data.decode(encoding)
-                break
-            except UnicodeDecodeError:
-                continue
+        subprocess.call(cmd, startupinfo=startupinfo, 
+                       creationflags=subprocess.CREATE_NO_WINDOW)
         
-        # 如果所有编码都失败，使用 'replace' 模式
-        if result_text is None:
-            result_text = stdout_data.decode('utf-8', errors='replace')
+        # 读取结果
+        results = []
+        if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+            with open(temp_path, 'r', encoding='utf-8', errors='replace') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        results.append(line)
         
-        # 解码stderr (如有需要)
-        error_text = None
-        if stderr_data:
-            for encoding in encodings:
-                try:
-                    error_text = stderr_data.decode(encoding)
-                    break
-                except UnicodeDecodeError:
-                    continue
-            
-            if error_text is None:
-                error_text = stderr_data.decode('utf-8', errors='replace')
+        # 删除临时文件
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
         
-        # 检查执行状态
-        if process.returncode == 0:
-            # 分割输出行并返回非空行
-            if result_text and result_text.strip():
-                return [line for line in result_text.strip().split('\n') if line.strip()]
-            return []
-        else:
-            # 处理错误情况
-            error_msg = f"搜索失败，错误代码: {process.returncode}"
-            if error_text:
-                error_msg += f"\n错误信息: {error_text}"
-            
-            # 根据错误代码提供更具体的提示
-            if process.returncode == 8:
-                error_msg += "\n未找到 Everything IPC 窗口。请确认 Everything 程序已运行，或使用非GUI模式运行。"
-            
-            raise RuntimeError(error_msg)
-            
+        return results
     except Exception as e:
-        raise RuntimeError(f"执行搜索时发生错误: {str(e)}")
+        raise RuntimeError(f"搜索文件时出错: {str(e)}")
+
+def _search_with_findstr(text, folder):
+    """使用 findstr 命令搜索文件内容"""
+    try:
+        # 创建临时文件以捕获输出
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.txt')
+        temp_path = temp_file.name
+        temp_file.close()
+        
+        # 使用 findstr 搜索文件内容
+        cmd = f'cmd /c findstr /s /m /c:"{text}" "{folder}\\*" > "{temp_path}" 2>nul'
+        
+        # 使用不显示窗口的方式执行命令
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        
+        subprocess.call(cmd, startupinfo=startupinfo, 
+                       creationflags=subprocess.CREATE_NO_WINDOW)
+        
+        # 读取结果
+        results = []
+        if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+            with open(temp_path, 'r', encoding='utf-8', errors='replace') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        results.append(line)
+        
+        # 删除临时文件
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        
+        return results
+    except Exception as e:
+        raise RuntimeError(f"搜索文件内容时出错: {str(e)}")
+
+def _search_with_python(pattern, folder):
+    """使用 Python 的 glob 模块搜索文件"""
+    try:
+        results = []
+        # 使用递归 glob 搜索
+        for file in glob.glob(os.path.join(folder, '**', pattern), recursive=True):
+            results.append(os.path.abspath(file))
+        return results
+    except Exception as e:
+        raise RuntimeError(f"使用 Python 搜索文件时出错: {str(e)}")
 
 if __name__ == "__main__":
     # 简单的命令行测试

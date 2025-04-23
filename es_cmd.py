@@ -4,7 +4,7 @@ from es_api import search
 
 def main():
     """
-    ES.EXE 命令行工具
+    文件搜索命令行工具
     使用方法: python es_cmd.py <搜索字符串> [搜索文件夹]
     """
     
