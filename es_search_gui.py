@@ -2,7 +2,60 @@ import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox
 import os
 import threading
-from es_search import search_files, is_everything_running, start_everything
+import subprocess
+import sys
+# 使用新的 API 函数
+from es_api import search
+
+# 检查 Everything 是否正在运行
+def is_everything_running():
+    """检查 Everything 程序是否在运行"""
+    try:
+        # 使用 tasklist 命令检查是否有 Everything 进程
+        result = subprocess.run(
+            "tasklist /FI \"IMAGENAME eq Everything.exe\" /NH", 
+            shell=True, 
+            capture_output=True, 
+            text=True
+        )
+        return "Everything.exe" in result.stdout
+    except:
+        return False
+
+# 无界面启动 Everything 服务
+def start_everything_service():
+    """尝试启动 Everything 服务，不显示 GUI"""
+    try:
+        # 首先尝试启动 Everything 服务
+        subprocess.run(
+            "sc start Everything", 
+            shell=True, 
+            capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        return True
+    except:
+        # 如果服务启动失败，尝试寻找 Everything.exe
+        try:
+            potential_paths = [
+                r"C:\Program Files\Everything\Everything.exe",
+                r"C:\Program Files (x86)\Everything\Everything.exe",
+            ]
+            
+            for path in potential_paths:
+                if os.path.exists(path):
+                    # 使用静默模式启动
+                    subprocess.Popen(
+                        [path, "-startup", "-minimized", "-silent"], 
+                        shell=False,
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
+                    import time
+                    time.sleep(2)
+                    return True
+            return False
+        except:
+            return False
 
 class SearchApp:
     def __init__(self, root):
@@ -64,12 +117,12 @@ class SearchApp:
         """检查 Everything 程序状态"""
         if not is_everything_running():
             answer = messagebox.askyesno("Everything 未运行", 
-                                        "检测到 Everything 程序未运行，需要启动 Everything 才能进行搜索。\n\n是否尝试自动启动 Everything？")
+                                        "检测到 Everything 程序未运行，需要启动 Everything 服务才能进行搜索。\n\n是否尝试自动启动？")
             if answer:
-                self.status_var.set("正在启动 Everything...")
+                self.status_var.set("正在启动 Everything 服务...")
                 self.root.update()
-                if start_everything():
-                    self.status_var.set("Everything 已启动，就绪")
+                if start_everything_service():
+                    self.status_var.set("Everything 服务已启动，就绪")
                 else:
                     self.status_var.set("无法自动启动 Everything，请手动启动")
             else:
@@ -110,11 +163,11 @@ class SearchApp:
     def _search_thread(self, search_text, folder_path):
         """在单独的线程中执行搜索"""
         try:
-            # 执行搜索
+            # 使用新的 search 函数执行搜索
             if folder_path:
-                results = search_files(search_text, folder_path)
+                results = search(search_text, folder_path)
             else:
-                results = search_files(search_text)
+                results = search(search_text)
             
             # 使用主线程更新 UI
             self.root.after(0, lambda: self._update_results(results))
