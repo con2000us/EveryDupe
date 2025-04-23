@@ -1,0 +1,39 @@
+# 忽略 bin/es 目录下的所有文件
+bin/es/*
+
+# 但不忽略 bin/es 目录本身
+!bin/es/
+!bin/es/.gitkeep
+
+# Python 相关文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+ENV/
+env/
+
+# IDE 相关文件
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace 
